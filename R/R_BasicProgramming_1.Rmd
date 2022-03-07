@@ -1,0 +1,224 @@
+---
+title: 'MÓDULO 1: HERRAMIENTAS BIG DATA'
+author: "Rodrigo Márquez"
+date: "18/12/2021"
+output:
+  word_document:
+subtitle: 'HERRAMIENTAS DE ANALISIS: PROGRAMACIÓN EN R - MICROACTIVIDADES'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(pander)
+library(kableExtra)
+options(knitr.kable.NA = '')
+```
+
+# EJERCICIO 1
+
+Para el ejercicio 1, utilizaremos los datos los datos `millas` que hay el package `datos`. Estos datos consisten en 238 filas y 11 columnas que describen el consumo de combustible de 38 modelos de coche populares.
+
+Puedes consultar más sobre los datos en la ayuda: `?millas`.
+
+```{r}
+library(datos)
+suppressPackageStartupMessages(library(tidyverse))
+```
+
+## EJERCICIO 1.1.
+
+A partir de los datos de **millas**, dibuja un gráfico de dispersión de puntos que muestre las millas recorridas en autopista por galón de combustible consumido (**autopista**) respecto a la **cilindrada** del motor de cada automóvil. No olvides añadir títulos al gráfico y a los ejes x e y.
+
+
+```{r}
+# Solución:
+
+#Se genera la función de forma que pueda ser lo mas reutilizable posible.
+
+function_graph <- function(data_input, color_input = "red", size_input = 3, 
+                           shape_input = 20, title_color = "color", title_shape = "shape", title_size = "size"){
+  ggplot(data = data_input)+
+    geom_point(aes(x= data_input$autopista , 
+                   y= data_input$cilindrada, 
+                   color = color_input, 
+                   shape = as.factor(shape_input), 
+                   size = as.numeric(size_input)))+
+    labs(title= "Relación medida entre rendimiento de combustible en autopista y cilindrada del motor", 
+         x= "millas por galon de combustible en autopista" , 
+         y= "tamaño del motor en litros", 
+         color = title_color,
+         shape = title_shape,
+         size = title_size)+
+    theme(title = element_text(size = 9), legend.title = element_text(size = 5), 
+               legend.text = element_text(size = 5), legend.position = "bottom", legend.key.size = unit(0.05, "cm"))+
+    guides(fill= guide_legend(nrow=30, byrow= TRUE))
+}
+
+function_graph(millas)
+```
+
+## EJERCICIO 1.2.
+
+A partir del gráfico del ejercicio 1.1., escoge una columna para cada uno de los siguientes parámetros estéticos: `color`, `size` y `shape`.
+
+> Truco: Observa que puedes seleccionar tanto columnas numéricas como de tipo carácter o factor. Si lo crees interesante, puedes utilizar la misma columna para distintos parámetros del gráfico .
+
+Comenta algún aspecto relevante que hayas descubierto sobre los coches a partir del gráfico.
+
+```{r}
+# Solución:
+function_graph(data= millas, 
+               color_input = millas$fabricante, 
+               size_input = millas$ciudad,
+               shape_input = factor(c(millas$clase)),
+               title_color = "Fabricante",
+               title_size = "Ciudad",
+               title_shape = "Clase")
+```
+
+
+En el gráfico anterior, se puede notar que los mejores rendimientos en carretera se dan principalmente Toyota y Honda, ambos fabricantes japoneses centrados en el aumento de la eficiencia de consumo, incluso llegando a investigar fuertemente el campo de coches híbridos y eléctricos. Como también era de esperar, los autos compactos y subcompactos son los mas eficientes, mientras que los vehículos utilitarios (ej.: pick up) se encuentran en el extremo opuesto. Un caso interesante es el de los vehículos dos puertas de Chevrolet, que reafirma el concepto de "Mustang americano" con mucha cilindrada y alto consumo de combustible.
+
+
+## EJERCICIO 1.3.
+
+Transforma el siguiente vector de tipo `factor` a tipo `numeric` de forma que el valor final mostrado sea exactamente el mismo en ambos vectores, pero con formato distinto. Para ello utiliza `as.character()` y `as.numeric()`. 
+
+¿Qué sucede si sólo utilizas `as.numeric()` directamente sobre la columna factor?
+
+Si se introduce solamente as.numeric(vec) lo que va a devolver es el índice del vector ordenado de menor a mayor, lo cual no es el valor del objeto del vector en sí.
+#Para obtener el objeto en si mismo, es necesario primero convertirlo a tipo string y evitar ese orden para luego devolverlo a valor numérico.
+
+```{r}
+vec <- factor(c("8","5","9","8","1","7"))
+print(vec) # valor mostrado
+
+# Solución:
+as.numeric(as.character(vec))
+
+
+```
+
+## EJERCICIO 1.4.
+
+Es millas un objeto de la clase *data.frame* o *matrix*?
+
+Millas es un data frame
+
+¿Y el siguiente objeto `obj`?
+
+Por otro lado, obj es una matriz, dado que junta dos vectores (columna cilindrada y columna cilindros). Por definición una matriz es un conjunto de vectores de igual longitud y tipo de dato. En este caso, obj cumple esos requisistos.
+
+```{r}
+
+obj <- cbind(millas$cilindrada,millas$cilindros)
+# solución
+class(millas)
+
+class(obj)
+
+
+```
+
+## EJERCICIO 1.5.
+
+Crea una función que tome un vector de tipo integer como input y retorne un objetido de tipo lista que contega los siguientes elementos:
+
+1. El último valor del vector
+1. Los elementos de las posiciones impares.
+1. Todos los elementos excepto el primero.
+1. Solo números impares (y no valores faltantes).
+
+```{r}
+# solución
+
+number_extraction <- function(vector_input){
+  list_extracted <- list()
+  #Ultimo valor del vector
+  list_extracted[["Last"]] <- tail(vector_input, n=1)
+  #Elementos en posiciones impares REVISARLO
+  list_extracted[["Odd Index"]] <- vector_input[seq(1,length(vector_input), by=2)]
+  #Todos los elementos, excepto el primero
+  list_extracted[["All but the first"]]<- vector_input[-1]
+  #Solo números impares
+  list_extracted[["Odd values"]]<- vector_input[which(vector_input%%2 != 0)] 
+  return(list_extracted)
+}
+
+number_extraction(c(0,1,2,3))
+```
+
+## EJERCICIO 1.6.
+
+Busca un ejemplo de objeto x en el que la expresión `x[-which(x > 0)]` no devuelve el mismo resultado que `x[x <= 0]`
+
+```{r}
+# Solución:
+x <- c(NA, NA)
+
+print("Con el which")
+x[-which(x > 0)]
+print("Sin which")
+x[x <= 0]
+
+```
+
+## EJERCICIO 1.7.
+
+Añade a millas una nueva columna llamada "fabr_mod" que contenga la concatenación del nombre del fabricante, un guion "-" y el modelo del coche. Presenta la nueva columna mediante la función head().
+
+```{r}
+# Solución:
+millas$fabr_mod <- paste(millas$fabricante, "-", millas$modelo)
+head(millas)
+```
+
+## EJERCICIO 1.8.
+
+Selecciona todos los coches de `millas` que cumplan con todas todas las condiciones siguientes:
+
+- La marca es distinta a "dodge"
+- Tiene tracción en las cuatro puertas
+- Han estado fabricados antes del 2008
+- Las millas/galón, o bién en ciudad, o bién en carretera, no llegan a 12 millas/galón.
+
+¿Cuantos coches has encontrado?
+
+```{r}
+# Solución:
+millas%>%
+  filter(millas$fabricante != "dodge" &
+         millas$traccion == 4 &
+         millas$anio < 2008 &
+         (millas$ciudad < 12 | millas$autopista < 12))
+    
+
+```
+
+## EJERCICIO 1.9.
+
+Añade una nueva columna "vol_por_cil" a `obj` del ejercicio 1.4. que contenga el ratio de la cilindrada sobre el número de cilindros. Presenta el summary de la nueva columna.
+
+```{r}
+# Solución:
+obj <- cbind(obj, millas$cilindrada/millas$cilindros)
+colnames(obj) <- c("cilindrada","cilindros","vol_por_cil")
+summary(obj[,3])
+```
+
+## EJERCICIO 1.10.
+
+Modifica los valores de la columna "vol_por_cil" del objeto `obj` del ejercicio 1.9. asignando NA a los valores de esta columna que sean superiores a 0.7.
+
+Presenta los datos con un summary del nuevo objeto `obj`. ¿Cuántos valores NA se han creado en esta columna? 
+
+En esta columna surgieron 18 NA's que provienen de que originalmente su ratio de volumen por cilindrada era mayor a 0.7.
+
+```{r}
+# Solución:
+obj[,3][obj[,3] > 0.7] <- NA
+head(obj)
+summary(obj)
+```
+
