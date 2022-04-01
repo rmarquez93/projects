@@ -1,0 +1,193 @@
+---
+title: "Entrega facebook grupal"
+author: "Rodrigo Marquez & José Ignacio Dagrava"
+date: "21/3/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(lubridate)
+library(moments)
+library(ggplot2)
+library(cowplot)
+library(stargazer)
+library(MASS)
+library(VIM)
+```
+
+## Se transforman los datos para tenerlos igual que en la entrega individual #2 de Facebook.
+
+```{r echo=TRUE}
+fb_df <- read.table("https://raw.githubusercontent.com/rmarquez93/data_masterbdds2022/main/fb_long.csv", dec= ",", sep=";", header= TRUE)
+```
+
+
+```{r echo=TRUE}
+glimpse(fb_df)
+
+fb_df <- fb_df %>% mutate(
+  Facebook_por_num = (Facebook_num/poblacion_num)*100 )
+
+fb_df %>% summary()
+```
+
+Se observa que la variable Iternet_por_num tiene un valor faltante.
+
+## 1. Calcula la variable “Facebook_por_Internet”= “Porcentaje de usuarios de Facebook sobre el total de usuarios de internet” (para cada país y año). Presenta y comenta el summary de esta variable.
+
+```{r echo=TRUE}
+fb_df <- fb_df %>% 
+  mutate(Facebook_por_Internet = Facebook_num/((Internet_por_num/100)*poblacion_num)*100)
+
+summary(fb_df$Facebook_por_Internet)
+```
+
+Observando el summary, se puede ver clararamente que nuestro conjunto de datos tiene un valor faltante, provocado por el missing que tiene la variable original "Internet_por_num" y que además tiene un valor máximo de 122 %, hecho que resulta muy extraño y que deja en evidencia que nuestro conjunto de datos podría contener más de un valor erroneo, ya que como estamos midiendo la proporción de usuarios en facebook con respecto a la proporción en internet, seria ilógico pensar que la proporción en facebook sea mayor que la de internet, ya que evidentemente para tener acceso a facebook primero necesitamos acceso internet.
+
+Por otro lado se puede ver que existe un rango intercuantilico grande (45.37).
+
+Veamos cuales son los valores que tiene la proporción de facebook mayor a la de internet.
+
+
+```{r echo=TRUE}
+fb_df %>% filter(Facebook_por_num >Internet_por_num) 
+```
+
+
+## 2. Dibuja y comenta, mediante el boxplot, si hay (o no) países outliers respecto a la variable Facebook_por_Internet.
+
+```{r echo=TRUE, warning=FALSE}
+ggplot(fb_df,aes(x = Facebook_por_Internet))+
+  labs(x="Facebook_por_Internet")+
+  geom_boxplot()
+```
+
+Dada la gráfica se observa que no existen valores outliers para la relación entre el porcentaje de usuarios en facebook sobre el total de usuarios con acceso a internet. Es decir que ningun país se encuentra por encima o por debajo de los respectivos bigotes del box-plot.
+
+A partir del boxplot, se puede concluir también que exite una asimetría negativa provocando que los datos se concentren más a la derecha de la media simétrica y que mayormente están más dispersos o con mayor distancia a la media sobre la izquierda de la misma. 
+
+
+## 3. Ajusta, de nuevo, los modelos de la actividad 2 de Facebook_por_num sobre Internet_por_num separados por año. Dibuja el primer plot (es decir, plot(modelo,1)) del modelo de regresión de cada año. Comenta si observas países con valores outliers en 2010. ¿Y en 2018?
+
+```{r echo=TRUE, warning=FALSE, message=FALSE}
+df_2010 <-fb_df[which(fb_df$anyo == 2010),]
+rownames(df_2010) <- df_2010$pais_r
+modelo_2010 <- lm(Facebook_por_num ~ Internet_por_num, 
+data=df_2010)
+
+df_2018<- fb_df[which(fb_df$anyo == 2018),]
+rownames(df_2018) <- df_2018$pais_r
+modelo_2018 <- lm(Facebook_por_num ~ Internet_por_num, 
+data=df_2018)
+
+plot(modelo_2010,1)+title(outer=TRUE, main =  "Modelo 2010")
+
+```
+
+Para el caso del modelo del 2010, se nota a simple vista que existen principalmente 3 valores que podrían ser outliers. Estos son los casos de Islandia, Japón y Corea del Sur. El principal motivo de esto reside en que se alejan bastante de un "error aleatorio" que oscila alrededor de la recta de regresión. Para los tres casos mencionados anteriormente, el residuo del modelo (es decir, la distancia entre la recta y el valor real) es bastante alto. De todas maneras, en los casos de Japón y Corea (sobreestimación del modelo) el error no parece alejarse tanto de los residuos mas comunes, mientras que para el caso de Islandia (subestimación) si parece suceder.  
+
+A partir de lo anterior, podríamos inferir que el principal posible outlier es Islandia, el cual se aleja bastante de la recta y los residuos mas habituales. De todas maneras, para poder confirmar esta afirmación será necesario continuar analizando el modelo.
+
+
+```{r echo=TRUE}
+
+plot(modelo_2018,1)+title(outer= TRUE,main = "Modelo 2018")
+
+```
+Para el caso del 2018 se observan 2 valores que podrían ser outliers: Rusia y Ucrania. Al igual que en el 2010, estos datos poseen la caracetrística de que tienen un alto residuo (en términos aboslutos) y se encuentran bastante aislados, lo que podría hacer que el modelo sea influenciado por los mismos.  
+Como se dijo anteriormente, será necesario continuar el análisis para poder tomar una conclusión definitiva.
+
+## 4. ¿Cuál puede ser la causa de la presencia de estos outliers en 2010? ¿Y en 2018?
+
+En el 2010, el principal motivo del posible outlier (Islandia) es la alta adopción de Facebook a medida que se popularizaba el uso del internet. Es decir, el ritmo de adopción de la red social ha sido mas "rápido" que en el resto de las observaciones para ese año.
+
+Para el caso del 2018, Rusia y Ucrania tienen el caso contrario al que tenía Islandia; adopción "lenta" en comparación al resto de las obersvaciones. Es sabido que Rusia posee políticas mas restrictivas en el uso de Internet y redes sociales, por lo cual sería interesante continuar analizando las mismas para explicar esa baja adopción.
+
+
+
+## 5. A partir del plot 4 y 5 del modelo, comenta si los valores de D Cook indican la presencia de outliers con un impacto relevante (D Cook > 1), en el ajuste de la regresión.
+```{r}
+plt_2010_4 <- plot(modelo_2010, 4)
+plt_2010_5 <- plot(modelo_2010, 5)
+
+```
+Para el año 2010 se puede observar que finalmente Islandia no es un outlier que influencia en demasía al modelo. Si bien se oberva que tiene un leverage alto y su error tipificado también lo es (en comparación al resto de los datos), al observar la distancia de Cook, la misma no llega ni siquiera a 0.5. 
+
+Dado lo anterior concluimos que no hay valores outliers con influencia signifcativa para el modelo del 2010.
+
+```{r}
+plt_2018_4 <- plot(modelo_2018, 4)
+plt_2018_5 <- plot(modelo_2018, 5)
+```
+Para el caso del 2018, si bien Ucrania y Rusia tienen un error tipificado alto (en término absolutos), su influencia relativa en el modelo no es de las mas altas.
+A su vez, la distancia de Cook no es mayor a 1 en ninguno de los dos casos.
+
+Dado lo anterior, se concluye que en el 2018 tampoco hay valores extremos de alta influencia en el modelo.
+
+## 6.Ajusta, ahora, los mismos modelos que en el punto 3, utilizando la versión robusta rlm de la librería MASS (algoritmo de los M-Estimadores). Presenta la comparación de los modelos lm y rlm mediante la función stargazer y comenta si observas cambios relevantes en los coeficientes del modelo respecto al modelo lm (algoritmo de mínimos cuadrados).
+
+```{r}
+
+rlm_2010 <- rlm(Facebook_por_num ~Internet_por_num, 
+data=fb_df[which(fb_df$anyo == 2010),])
+
+rlm_2018 <- rlm(Facebook_por_num ~Internet_por_num, 
+data=fb_df[which(fb_df$anyo == 2018),])
+
+
+stargazer(modelo_2010, modelo_2018, rlm_2010, rlm_2018, type="text")
+```
+Al comparar los modelos de regresión lineal con los modelos de regresion lineal robusta, se observa que no hay grandes cambios entre ellas.
+
+Los cambios mas grandes residen en el valor de las constantes (que no llegan a ser de un punto porcentual en ninguno de los casos) y en el error estandar residual. Para este último estadístico, se nota una variación que beneficia al modelo ya que su valor es menor en el caso del RLM (9.897 y 14.558 para 2010 y 2018 respectivamente). 
+
+Como nota se aclara que el R2 no ha sido calculado en el caso del RLM ya que no aplica su cálculo debido a que no se aplica el método de los mínimos cuadrados.
+
+Como conclusión, se puede decir entonces que se confirma el concepto de que no hay valores outliers de gran influencia en el modelo. A pesar de lo anterior, sería recomendable utilizar el RLM para modelizar la relación entre ambas variables, ya que arroja una mejor bondad de ajuste.
+
+## 7. Propón un valor imputado para el missing observado en Taiwán en la variable Internet_por_num a partir de los modelos analizados u otro modelo nuevo ajustado a tal efecto.
+
+Mediante la función regressioImp de la librería VIM imputamos un valor que nos devolvera la función en base a la regresión lineal con las observaciones actuales. Además probamos otra alternativa con otro de los posibles metodos de imputación de valores faltantes, el cual consiste en imputar el valor de la media de forma tal que la medias y covarianzas no se vean muy afectadas y se parezcan mas a la población real.
+
+```{r}
+df_imp_2010 <- regressionImp(Internet_por_num ~ Facebook_por_num,
+                             data = fb_df[which(fb_df$anyo == 2010),])
+
+mean_2010 <- mean(fb_df[which(fb_df$anyo == 2010),"Internet_por_num"],na.rm=TRUE)
+
+fb_df <- fb_df %>%
+  mutate(
+    Internet_por_imp = ifelse(is.na(Internet_por_num),mean_2010,Internet_por_num)
+    )
+
+lm_VIM <-lm(Facebook_por_num ~ Internet_por_num, data=df_imp_2010)
+
+lm_mean <- lm(Facebook_por_num ~ Internet_por_num, 
+              data=fb_df[which(fb_df$anyo == 2010),])
+
+stargazer(modelo_2010, lm_VIM, lm_mean, type='text')
+
+```
+
+Dado los dos métodos propuestos, se observa como los tres modelos se ajustan por igual. Aunque si cabe mencionar que se aprecia una mejora en el modelo (modelo 2 - lm_VIM) que se ajusta con el missing imputado por la regresión ajustada. Dicho modelo tiene un R2 = 50,9 % contra el 50,8% de los otros dos y a su vez tiene un error estandar residuar algo inferior.
+
+## 8. Explica de qué forma puede ayudar el uso del Bootstrap (muestreo aleatorio simple con reemplazo) al proceso de imputación de valores faltantes como el que has propuesto en el punto anterior.
+
+Con este metodo podriamos imputar cualquiera de los valores que posee el conjunto de datos de forma aleateoria donde cada valor tendría la misma probabilidad. De esta forma, estaríamos introduciendo a nuestra muestra un componente de aleatoriedad. A pesar de lo anterior, a los efectos de nuestro estudio, no consideramos que nos sea de gran ayuda este método porque podría introducir valores erróneos. Un ejemplo de estos posibles valores erróneos es que se impute un valor inferior al % de usuarios en facebook, hecho empíricamente imposible ya que no podria haber un % de usuarios con acceso a internet inferior al de usuarios de facebook.
+
+Por otra parte, cabe mencionar que si tuvieramos varios valores missings en nuestro dataset, este método podría imputar dos o más veces el mismo valor, ya que todos tienen de la misma probabilidad.
+
+
+```{r}
+set.seed(890)
+sample(fb_df[which(fb_df$anyo == 2010),"Internet_por_num"], 
+       size = 10,
+       replace=TRUE)
+```
+
+Como se observa, en el muestreo aleatorio simple con reemplazo, si se corre para 10 valores missing el valor 65 aparece 2 veces.
+

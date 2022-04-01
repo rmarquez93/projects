@@ -1,0 +1,156 @@
+---
+title: "M3_AI4_MarquezRodrigo"
+author: "Rodrigo Marquez"
+date: "15/3/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(lubridate)
+```
+
+## Carga los datos del fichero en un data frame. ¿Por qué no es un conjunto de datos ordenado?
+
+La importación se hace desde mi repositorio en github para facilitar la accesibilidad. Se define el separador de decimales y el de columnas.
+
+Por el momento se puede decir que el dataset no es un conjunto ordenado de datos porque no cumple los criterios mínimos para definirlo como tal:
+
+1) Existen columnas que tienen dos variables concatenadas (columna= 'indicador')
+2) Por cada observación hay mas de una columna (Para cada año de observación, hay tres columnas; una para internet, otra para Facebook y otra para población).
+3) Los valores, como anteriormente se dijo, se encuentran concatenados o mal distribuidos en la tabla.
+
+Parte de lo que se encargará esta práctica es de justamente ordenar este dataset.
+
+```{r Importación}
+data_raw <- read.table("https://raw.githubusercontent.com/rmarquez93/data_masterbdds2022/main/Facebook_10_18_raw.csv", dec= ",", sep=";", header= TRUE)
+```
+## Separa el año y el “indicador” en dos columnas separadas: anyo, variable. Presenta la tabla de las frecuencias de cada nueva variable.
+
+En una primera instancia, se genera la separación de ambas variables en dos columnas separadas. No se elimina la columna original para no perder trazabilidad.
+
+```{r pressure, echo=FALSE}
+data_raw <- data_raw %>% separate(indicador,into = c("anyo","indicador"), sep = "[|]", remove= FALSE)
+```
+Luego, se genera una tabla de frecuencias para cada una de las nuevas variables generadas. 
+
+Se puede observar que hay 234 observaciones para cada año (siendo el total del dataset 468 observaciones). Dicho esto, se podría decir que la variable anyo tiene una calidad completa ya que todas las observaciones tiene tienen registrada alguna de las dos posibilidades; no hay valores faltantes.
+```{r}
+table(data_raw$anyo)
+```
+
+Por otro lado, la variable indicador se compone por 3 observaciones: Internet_por, población y Facebook.
+
+Las mismas, al final de cuentas, son variables en si mismas cuya observación para cada caso es el valor que se encuentra en la columna "valor". Esto se podrá ver mas claramente a medida que avance la práctica. Se puede decir de todas maneras que la data tampoco presenta valores faltantes en esta columna, ya que cada una de las posibilidades posee 156 observaciones en su frecuencia.
+```{r}
+table(data_raw$indicador)
+```
+## Codifica el nombre de los países en una nueva columna “pais_r” donde, al analizar la tabla de frecuencias cada país, tenga frecuencia 6.
+
+Para esta asignación, lo primero que se debe hacer es buscar aquellos países donde la frecuencia no sea 6. Esto principalmente se debe a que actualmente cada país tendría 6 filas u observaciones; 3 por cada variable (Facebook, internet, población) para cada año registrado (2010 y 2018).
+
+Al registrar los países con frecuencia distinta a 6, se nota que esto se debe principalmente a que los países están nombrados distintos, dependiendo del caso.
+```{r}
+#Analizo que valores dan una frecuencia distinta a 6, ya que serán los que tienen problemas de tipeo
+print(which(table(data_raw$pais) != 6))
+
+# Hago las transformaciones necesarias sobre esos valores
+
+data_raw <- data_raw %>% mutate(
+  pais_r = pais,
+  pais_r = str_replace_all(pais_r,"Egypt, Arab Rep.","Arab Rep. Egypt"),
+  pais_r = str_replace_all(pais_r,"Yemen, Rep.", "Rep. Yemen"),
+  pais_r = ifelse(pais_r=="Russian", "Russian Federation", pais_r)
+)
+```
+```{r}
+table(which(table(data_raw$pais_r) != 6))
+```
+Luego de modificados los valores, las frecuencias son todas 6; la busqueda de frecuencias distintas a 6 devuelve un resultado vacío.
+
+## Pivota la tabla a formato wide de forma que cada variable tenga su propia columna y cada país dos filas (una para cada año). Comenta la estructura de la tabla (glimpse).
+
+Para este caso, lo que se hace es tomar los 3 valores que se repiten en la columna indicador (Facebook, Internet_por y poblacion) y se los toma como variables propias que tomarán su valor de la columna "valor" original. A su vez, a partir del glimpse se puede observar que todas las columnas son de tipo char. Posteriormente se van a hacer las conversiones necesarias.
+
+A partir de lo anterior, se generan las 3 nuevas columnas con sus respectivos valores.
+```{r}
+
+data_raw <- data_raw %>% pivot_wider(names_from = indicador, values_from = valor)
+
+glimpse(data_raw)
+```
+Al efectuar el pivot, se nota que se generan las tres columnas mencionadas anteriormente. A pesar de estp, la cantidad de observaciones es 162, lo cual no parece coincidir con el total de países registrados para cada año. Para corroborar lo anterior se toma en cuenta la cantidad única de paises y se la multiplica por dos ya que se están registrando valores de dos años.
+```{r}
+n_distinct(data_raw$pais_r)*2
+```
+Se puede notar que la tabla no está uniendo en una misma observación aquellos valores que deberían ir juntos para los países donde se modificó el nombre (ej.: Egipto en 2018 tiene las columnas Facebook e Internet con valores en una fila y población en otra).
+
+Dada esta situación, se genera una nueva tabla con la data procesada para tener la cantidad de observaciones esperadas.
+
+```{r}
+data_processed <- 
+  data_raw %>% 
+ group_by(pais_r, anyo) %>% summarise(Facebook = max(Facebook, na.rm = T),
+                 Internet_por = max(Internet_por, na.rm = T),
+                 poblacion = max(poblacion, na.rm = T))
+```
+
+## Transforma las tres variables (Facebook, Internet_por, poblacion) a formato numérico en tres variables nuevas con el sufijo “_num”. Aplica antes la/s transformación/es de las variables de texto que creas conveniente. Presenta el summary de las variables nuevas.
+```{r}
+#Recuento valores faltantes en string al inicio
+sprintf("Internet: %i",sum(is.na(data_raw$Internet_por)))
+sprintf("Facebook: %i",sum(is.na(data_raw$Facebook)))
+sprintf("Población: %i",sum(is.na(data_raw$poblacion)))
+
+
+```
+```{r}
+
+
+data_raw <- data_raw %>% mutate(
+  Facebook = str_replace_all(Facebook, "[.]","")
+  , Internet_por = str_replace_all(Internet_por, "[.]","")
+  , poblacion = str_replace_all(poblacion,"[.]","")
+)%>% mutate(
+  Facebook = str_replace_all(Facebook,"[,]",".")
+  , Internet_por = str_replace_all(Internet_por,"[,]",".")
+  , poblacion = str_replace_all(poblacion,"[,]",".")
+)%>% mutate(
+  Internet_num = as.numeric(Internet_por)
+  , Facebook_num = as.numeric(Facebook)
+  , poblacion_num = as.numeric(poblacion)
+)
+
+data_raw%>%
+  select(Internet_num, Facebook_num, poblacion_num)%>%
+  summary()
+```
+Por último, llevo estas transformaciones a data_processed y hago un summary nuevamente.
+Al verificar los resultados se nota que hay un valor -Inf en Internet:num debido principalmente a que Taiwan efectivamente tiene data faltante en 2010. A partir de esto, se reemplaza ese valor -Inf por NA.
+
+```{r}
+data_processed <- 
+  data_raw %>% 
+ group_by(pais_r, anyo) %>% summarise(Facebook_num = max(Facebook_num, na.rm = T),
+                 Internet_num = max(Internet_num, na.rm = T),
+                 poblacion_num = max(poblacion_num, na.rm = T))
+
+data_processed$Internet_num <- replace(data_processed$Internet_num, 
+                                       data_processed$Internet_num<0, NA)
+summary(data_processed)
+```
+
+Se puede ver que tanto al inicio como al final de la transformación los valores faltantes son la misma cantidad para cada variable. Como conclusión se puede decir entonces que la conversión numérica se hizo correctamente y que no se perdieron observaciones en el proceso para el dataframe data_raw.
+
+A partir de la entrega realizada, las variables finales serían:
+
+1) País - Variable cualitativa nominal
+2) Anyo - Variable cuantitativa continua que se toma como cualitativa ordinal a los efectos del análisis.
+3) Pais_r - Idem País
+4) Internet_por - Variable cuantitativa discreta. Se toma que es un ratio de cobertura de internet por cantidad de habitantes. A partir de lo anterior, y dado que la población no es una variable continua, se la toma como discreta.
+5) Facebook - Idem internet ya que refiere a población
+6) Poblacion - Idem Internet
+7) Resto de las variables _num : Son iguales a las variables 4,5 y 6.

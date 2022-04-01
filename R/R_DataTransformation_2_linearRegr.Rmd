@@ -1,0 +1,350 @@
+---
+title: "M3_AI5_MarquezRodrigo"
+author: "Rodrigo Marquez"
+date: "21/3/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(lubridate)
+library(moments)
+library(ggplot2)
+library(cowplot)
+library(stargazer)
+```
+
+## Carga los datos del fichero en un data frame y calcula “Facebook_por_num” = “porcentaje de usuarios de Facebook sobre el total de población”. Presenta el summary de todas las variables del data frame.
+
+```{r}
+fb_df <- read.table("https://raw.githubusercontent.com/rmarquez93/data_masterbdds2022/main/fb_long.csv", dec= ",", sep=";", header= TRUE)
+```
+
+Se carga el fichero csv para, posteriormente, correr un glimpse y entender la estructura y cómo fueron leídas las variables por el read.table .
+
+```{r}
+glimpse(fb_df)
+
+fb_df <- fb_df %>% mutate(
+  Facebook_por_num = (Facebook_num/poblacion_num)*100 
+)
+
+fb_df %>% summary()
+```
+A partir de lo desarrollado anteriormente, se obtienen las siguientes variables:
+
+1. **pais_r** : Variable cualtitativa nominal.
+2. **Facebook_num**: Variable cuantitativa discreta. Refiere a cuentas creadas/utilizadas.
+3. **Internet_por_num**: Variable cuantitativa discreta. Es la proporción de personas que utiliza internet.
+4. **poblacion_num**: Variable cuantitativa discreta. Refiere a la cantidad de habitantes del país.
+5. **anyo**: Por la naturaleza de la variable se podría decir que es una variable cuantitativa continua, ya que refiere al tiempo. A pesar de lo anterior, a los efectos del análisis se tomará como una variable cualitativa ordinal.
+6. **Facebook_por_num**: Variable cuantitativa discreta. Mismo criterio que con internet.
+
+## Haz un análisis univariante de Internet_por_num y Facebook_por_num separado por año. Calcula y comenta el histograma y estadísticos univariantes (centralización, dispersión, posición, concentración y forma).
+
+Para empezar el análisis, se realizará una tabla de frecuencias. Con el fin de confeccionar la misma, se aplica la regla de Sturges para poder generar conjuntos que den una visión mas general de las frecuencias por intervalo.
+
+Se comienza por **Internet_por_num**. Cabe resaltar que todos los análisis unidimensionales se aperturan por anyo (2010 y 2018).
+
+Antes de comenzar con el análisis, cabe resaltar que la variable en cuestión tiene un valor faltante. Se filtra esa observación para tener mas información.
+```{r}
+print(fb_df[which(is.na(fb_df$Internet_por_num)),])
+```
+
+```{r}
+fb_df <- fb_df %>% mutate(
+  Internet_por_num_discretizada = cut(Internet_por_num, nclass.Sturges(Internet_por_num)),
+  Facebook_por_num_discretizada = cut(Facebook_por_num, nclass.Sturges(Facebook_por_num))
+)
+
+
+fb_df%>% group_by(anyo) %>%
+  count(Internet_por_num_discretizada) %>%
+  mutate(freq_rel = round(n / sum(n),3))%>%
+  pivot_wider(names_from = "anyo", values_from= c("n","freq_rel")) %>%
+  select(c(Internet_por_num_discretizada,n_2010,freq_rel_2010,n_2018,freq_rel_2018))
+
+```
+Una vez generada la tabla de frecuencias, se procede también a crear un dataframe con los estadísticos mas relevantes para un análisis unidimensional. 
+
+```{r}
+
+internet_estadisticos <-fb_df %>%
+  group_by(anyo) %>%
+  summarise(media = mean(Internet_por_num, na.rm=TRUE),
+            sd = sd(Internet_por_num, na.rm= TRUE),
+            CV= sd/media,
+            asimetria = skewness(Internet_por_num, na.rm= TRUE),
+            kurtosis = kurtosis(Internet_por_num, na.rm= TRUE),
+            minimo = min(Internet_por_num, na.rm= TRUE),
+            Q25 = quantile(Internet_por_num, na.rm= TRUE,0.25),
+            mediana = median(Internet_por_num, na.rm= TRUE),
+            Q75= quantile(Internet_por_num, na.rm= TRUE,0.75),
+            maximo= max(Internet_por_num, na.rm= TRUE)) %>%
+  pivot_longer(cols = -1, names_to = "Estadístico", values_to= "valor") %>%
+  pivot_wider(names_from = "anyo", values_from= "valor")
+
+internet_estadisticos
+```
+Como último paso, se confeccionan dos histogramas para la variable internet_por; uno para 2010 y otro para 2018.
+
+```{r}
+histograma_Internet_2010 <- ggplot(fb_df[which(fb_df$anyo ==2010),], 
+                              aes(x= Internet_por_num))+
+  geom_histogram(bins = nclass.Sturges(fb_df$Internet_por_num))+
+  labs(x= "Internet_por_num en 2010")
+
+histograma_Internet_2018 <- ggplot(fb_df[which(fb_df$anyo ==2018),], 
+                              aes(x= Internet_por_num))+
+  geom_histogram(bins = nclass.Sturges(fb_df$Internet_por_num))+
+  labs(x= "Internet_por_num en 2018")
+
+plot_grid(histograma_Internet_2010,histograma_Internet_2018, nrow=2)
+```
+A partir de las medidas anteriores se pueden extraer las siguientes conclusiones:
+
+1. La variable de estudio posee un valor faltante para el año 2010. Este valor refiere a Taiwán.
+
+2. En el año 2010 se puede observar una distribución menos concentrada que en 2018. A su vez, en el año 2018 la concentración de valores se centra en los últimos percentiles. Esto podría relacionarse con el ritmo de adopción de Internet a nivel global; cada vez mas se percibe el uso de Internet como un servicio común en la sociedad.
+
+3. El punto anterior se encuentra respaldado por ciertos estadísticos extraídos. La asimetría, si bien negativa en ambos años, tiene una alta variabilidad entre un año y otro (-0.08 vs -0.82). Esta asimetría negativa implica que los datos se encuentran mas concentrados en valores altos y posee una "cola larga" hacia valores menores.  
+Por otro lado, la desviación estandar en 2010 es mayor a la de 2018 (27.2 vs 20.5). Esto, acompañado de un incremento en la media (48.2 en 2010 vs 73.3 en 2018) demuestra que la dispersión de la distribución es menor y que a su vez la media es mayor, lo cual da a entender que hay una mayor concentración en valores altos. Esta última afirmación también se verifica por el cambio en la curtosis (1.8 vs 2.9) lo cual muestra la acentuación de la forma leptocúrtica de la distribución.
+
+4. Continuando sobre la variabilidad, se aprecia que el coeficiente de variación disminuye a la mitad de un período a otro (56,5% vs 28%), explicitando el aumento de homogeneidad en la variable. 
+
+5. A nivel de análisis de posición, se puede decir que tanto los mínimos como máximos han aumentado de un período a otro; el cambio mas fuerte fue a nivel del valor mínimo, lo cual reafirma el concepto de que el servicio de internet ha ido volviéndose cada vez mas popular en los países y hay un "piso mínimo" de uso mayor que durante el 2010.
+
+
+Se continúa ahora con el análisis de la variable **Facebook_por_num** aplicando los mismos pasos que para la variable anterior.
+
+```{r}
+fb_df%>% group_by(anyo) %>%
+  count(Facebook_por_num_discretizada) %>%
+  mutate(freq_rel = round(n / sum(n),3)) %>%
+  pivot_wider(names_from = "anyo", values_from= c("n","freq_rel")) %>%
+  select(c(Facebook_por_num_discretizada,n_2010,freq_rel_2010,n_2018,freq_rel_2018))
+```
+```{r}
+facebook_estadisticos <- fb_df %>% 
+  group_by(anyo) %>%
+  summarise(media = mean(Facebook_por_num, na.rm=TRUE),
+            sd = sd(Facebook_por_num, na.rm= TRUE),
+            CV= sd/media,
+            asimetria = skewness(Facebook_por_num, na.rm= TRUE),
+            kurtosis = kurtosis(Facebook_por_num, na.rm= TRUE),
+            minimo = min(Facebook_por_num, na.rm= TRUE),
+            Q25 = quantile(Facebook_por_num, na.rm= TRUE,0.25),
+            mediana = median(Facebook_por_num, na.rm= TRUE),
+            Q75= quantile(Facebook_por_num, na.rm= TRUE,0.75),
+            maximo= max(Facebook_por_num, na.rm= TRUE)) %>%
+  pivot_longer(cols = -1, names_to = "Estadístico", values_to= "valor") %>%
+  pivot_wider(names_from = "anyo", values_from= "valor")
+
+facebook_estadisticos
+```
+```{r}
+histograma_Facebook_2010 <- ggplot(fb_df[which(fb_df$anyo ==2010),], 
+                              aes(x= Facebook_por_num))+
+  geom_histogram(bins = nclass.Sturges(fb_df$Facebook_por_num))+
+  labs(x= "Facebook_por_num en 2010")
+
+histograma_Facebook_2018 <- ggplot(fb_df[which(fb_df$anyo ==2018),], 
+                              aes(x= Facebook_por_num))+
+  geom_histogram(bins = nclass.Sturges(fb_df$Facebook_por_num))+
+  labs(x= "Facebook_por_num en 2018")
+
+plot_grid(histograma_Facebook_2010,histograma_Facebook_2018, nrow=2)
+```
+Siguiendo el criterio de análisis efectuado en Internet_por_num, se llega a las siguientes conclusiones:
+
+1. En este caso, la variable no posee valores faltantes para ninguno de los dos años.
+2. También se observa que hay una mayor concentración de datos en 2018 en comparación con 2010. A pesar de lo anterior, la concentración no es tan alta como lo era para el caso de Internet (el CV de internet en 2010 era del 28% mientras que para Facebook es del 43%). La explicación de esta diferencia podría residir en que, si bien el Internet se toma  ada vez mas como un servicio "básico", el uso de Facebook no ha alcanzado tal nivel de "escencialidad" a pesar de que su adopción ha ido incrementando entre los años de estudio.
+3. Tanto en el histograma como en la asimetría se puede observar cómo la adopción de Facebook cambió mas drásticamente entre un año y otro. Mientras que en el 2010 la asimetría era positiva (0.87) en el 2018 pasó a ser negativa (-0.71).   
+Si bien durante 2010 los datos se concentraban en valores bajos, durante 2018 la tendencia fue a la inversa.  
+Analizando la media, se puede concluir que a pesar de que es mas baja en 2010 (19.3 vs 48.9), la desviación típica es mas alta en 2018. Esto denota que, aunque el valor medio de la variable es notoriamente mas alto, la variabilidad también aumentó.  
+Como se dijo en el punto 2, a pesar de que el coeficiente de variación disminuyó, se nota cierta heterogeneidad en los datos.
+
+
+
+
+## Haz un gráfico para cada variable (Facebook_por_num y Internet_por_num) donde se pueda visualizar la variación entre 2010 y 2018 del valor medio (o el estadístico que prefieras). Explica qué observas en el gráfico.
+```{r}
+internet_2010 <- ggplot(fb_df[which(fb_df$anyo == 2010),], 
+                                aes(x = Internet_por_num))+
+                                labs(x="Internet 2010")+
+                                geom_boxplot()
+
+internet_2018 <- ggplot(fb_df[which(fb_df$anyo == 2018),], 
+                                aes(x = Internet_por_num))+
+                                labs(x="Internet 2018")+
+                                geom_boxplot()
+
+plot_grid(internet_2010, internet_2018, nrow = 2)
+```
+A partir de los diagramas de caja mostrados anteriormente se puede extraer que:
+
+1. No existen valores extremos para el caso de internet para ninguno de los dos años.
+2. Se observa una mayor asimetría en 2018 que en 2010, lo cual ha sido comentado anteriormente en el análisis de los estadísticos.
+3. El rango intercuartílico ha disminuido (46.7 vs 30) lo cual genera una caja mas pequeña. A pesar de lo anterior, no hay valores extremos y todos los datos se encuentran dentro de los bigotes del gráfico.
+```{r}
+facebook_2010 <- ggplot(fb_df[which(fb_df$anyo == 2010),], 
+                                aes(x = Facebook_por_num))+
+                                labs(x="Facebook 2010")+
+                                geom_boxplot()
+
+facebook_2018 <- ggplot(fb_df[which(fb_df$anyo == 2018),], 
+                                aes(x = Facebook_por_num))+
+                                labs(x="Facebook 2018")+
+                                geom_boxplot()
+
+plot_grid(facebook_2010, facebook_2018, nrow = 2)
+```
+Para el caso de Facebook se concluye:
+
+1. Hay valores extremos para ambos años. Sin embargo, los extremos son mayores a Q3 x 1,5 IQR en el 2010 y son menores a Q2 X 1,5 IQR para 2018. Esto demuestra una alta concentración de datos en un rango pequeño pero una variabilidad alta en la distribución.
+2. Siguiendo con lo anterior, la caja en si misma tuvo un desplazamiento alto mostrando una suba general del uso de facebook. A pesar de lo anterior, los outliers bajos son muchos mas en 2018 que los outliers altos en 2010. Estos outliers podrían ser países "resagados" que no han adoptado esta red social al mismo ritmo que otros países similares.
+3. A nivel de IQR no se han notado grandes cambios entre un período y otro (25.74 vs 21.2)
+
+## Haz un análisis bivariante entre Facebook_por_num sobre Internet_por_num:
+  - Gráfico de dispersión separando el año de observación en colores distintos.
+  - Introduce, en el gráfico de dispersión, una recta de regresión (una por año).
+  - Comenta si crees que la relación observada es lineal.
+  
+```{r}
+
+por_anyo <- fb_df %>% 
+  ggplot(aes(x= Internet_por_num, y= Facebook_por_num, color= c(as.character(anyo))))+
+  geom_point()+
+  geom_smooth(data = fb_df[which(fb_df$anyo == 2010),], method = "lm", se= FALSE)+
+  geom_smooth(data = fb_df[which(fb_df$anyo == 2018),], method = "lm", se= FALSE)+
+  labs(title = "Diagrama de dispersion y regresion lineal de facebook e internet para 2010 y 2018", x= "Propoción de usuarios de Internet", y = "Proporción de usuarios de Facebook", color = "Año")+ 
+  theme(title = element_text(size = 9), legend.title = element_text(size = 7), 
+               legend.text = element_text(size = 7), legend.position = "bottom",
+        legend.key.size = unit(0.25, "cm"))+
+  ylim(0,100)+ xlim(0,100)
+
+por_anyo
+```
+```{r}
+
+cor.test(fb_df[which(fb_df$anyo == 2010),"Internet_por_num"], fb_df[which(fb_df$anyo == 2010),"Facebook_por_num"], method= "pearson")
+
+print(paste("R cuadrado: ",summary( lm(Facebook_por_num~Internet_por_num, data=fb_df[which(fb_df$anyo == 2010),]))$r.squared))
+
+
+cor.test(fb_df[which(fb_df$anyo == 2018),"Internet_por_num"], fb_df[which(fb_df$anyo == 2018),"Facebook_por_num"], method= "pearson")
+
+print(paste("R cuadrado: ",summary( lm(Facebook_por_num~Internet_por_num, data=fb_df[which(fb_df$anyo == 2018),]))$r.squared))
+```
+
+
+A partir de los modelos generados se observa cierta linealidad en ambos años. El coeficiente de correlación es alto (0.71 y 0.70 para 2010 y 2018) como asi también su R2 (0.51 y 0.49).  
+Cabe resaltar también que, si bien baja, hay una diferencia en los valores entre 2010 y 2018 lo cual podría llevarnos a concluir que el modelo se ajusta un poco mejor en 2010 respecto a 2018. De todas maneras, en ambos casos los valores son correctos.
+
+
+## Propón alguna transformación sobre las variables del análisis y argumenta cuál es la mejor.
+
+
+```{r}
+fb_df <- fb_df %>%
+  mutate("Internet_por_num_elevada_alcuadrado"= Internet_por_num**2,
+         "Facebook_log" = log(Facebook_por_num),
+         "Raiz_Cuadrada_Facebook"= sqrt(Facebook_num))
+
+His_Int <- ggplot(fb_df,aes(x= Internet_por_num))+
+geom_histogram(bins = nclass.Sturges(fb_df$Internet_por_num))+
+labs(x= "Internet")
+
+His_IntCuadrado <- ggplot(fb_df,aes(x= Internet_por_num_elevada_alcuadrado))+
+geom_histogram(bins = nclass.Sturges(fb_df$Internet_por_num))+
+labs(x= "Internet al cuadrado")
+
+plot_grid(His_Int, His_IntCuadrado, nrow=2)
+
+
+print(data.frame(rbind(fb_df %>%
+  summarise(transformacion= "Original",
+            asimetria = skewness(Internet_por_num, na.rm= TRUE),
+kurtosis = kurtosis(Internet_por_num, na.rm= TRUE)),
+
+fb_df %>% 
+  summarise(transformacion= "Al cuadrado",
+              asimetria = skewness(Internet_por_num_elevada_alcuadrado, na.rm= TRUE),
+kurtosis = kurtosis(Internet_por_num_elevada_alcuadrado, na.rm= TRUE)))))
+```
+La transformación elegida para este caso fue la de elevación al cuadrado de la variable.
+
+Se puede observar que al efectuar dicha transformación, la asimetría es mas cercana a 0 (tendencia simétrica). A su vez, la curtosis sigue siendo leptocúrtica pero sus valores también decrecen.
+
+Dado lo anterior, sería recomendable utilizar dicha transformación en vez de la variable original.
+```{r}
+His_Facebook <- ggplot(fb_df,aes(x= Facebook_por_num))+
+geom_histogram(bins = nclass.Sturges(fb_df$Facebook_por_num))+
+labs(x= "Facebook")
+
+His_LogFb <- ggplot(fb_df,aes(x= Facebook_log))+
+geom_histogram(bins = nclass.Sturges(fb_df$Facebook_por_num))+
+labs(x= "Log Facebook")
+
+His_RaizFb <- ggplot(fb_df,aes(x= Raiz_Cuadrada_Facebook))+
+geom_histogram(bins = nclass.Sturges(fb_df$Facebook_por_num))+
+labs(x= "Raiz Cuadrada Facebook")
+
+plot_grid(His_Facebook, His_LogFb, His_RaizFb, nrow=3)
+
+
+print(data.frame(rbind(fb_df %>% 
+  summarise(transformacion= "Original",
+              asimetria = skewness(Facebook_por_num, na.rm= TRUE),
+kurtosis = kurtosis(Facebook_por_num, na.rm= TRUE)),
+fb_df %>%
+  summarise(transformacion= "Log",
+            asimetria = skewness(Facebook_log, na.rm= TRUE),
+kurtosis = kurtosis(Facebook_log, na.rm= TRUE)),
+
+fb_df %>%
+  summarise(transformacion= "Raiz Cuadrada",
+            asimetria = skewness(Raiz_Cuadrada_Facebook, na.rm= TRUE),
+kurtosis = kurtosis(Raiz_Cuadrada_Facebook, na.rm= TRUE)))))
+  
+```
+Para el caso de facebook, se puede notar que ninguna de las transformaciones propuestas han generado una mejora sobre la variable. 
+Dado lo anterior, se sugiere utilizar la variable original para su análisis.
+
+
+## Compara, mediante stargazer, los coeficientes de la recta de regresión de Facebook_por_num sobre Internet_por_num en 2010 y 2018. Interpreta el significado de los coeficientes de la regresión en cada año.
+
+```{r}
+
+modelo_2010 <- lm(Facebook_por_num ~ Internet_por_num_elevada_alcuadrado+ Internet_por_num, 
+data=fb_df[which(fb_df$anyo == 2010),])
+modelo_2018 <- lm(Facebook_por_num ~ Internet_por_num_elevada_alcuadrado+ Internet_por_num, 
+data=fb_df[which(fb_df$anyo == 2018),])
+
+stargazer(modelo_2010, modelo_2018, type="text")
+```
+  Se puede observar cierta linealidad a partir del coeficiente de determinación (R2) en ambos casos. De todas formas, para el año 2018 ese coeficiente va disminuyendo. Esto se puede explicar por una mayor dispersión de los datos en Facebook que en Internet lo cual puede generar que los pares "Internet - Facebook" tengan un menor grado de linealidad que en el año 2010. 
+  
+  Por otro lado, la varianza residual es menor en 2010 que su valor en 2018 (11.8 vs 15.2). Esto significa que el ajuste del modelo para 2010 es mejor, reafirmando el concepto de que la linealidad es mas clara en dicho año.
+  
+## A partir de los datos del punto anterior, comenta de qué forma beneficia a Facebook el hecho que, en 2018, el coeficiente de Internet_por_num sea muy superior al observado en el año 2010.
+
+
+El incremento de la pendiente de la recta para la variable Internet_por_num (0.411 vs 1.044) beneficia a Facebook en el hecho de que presenta una mayor sensibilidad a cambios en la proporción de usuario de Internet para los países.  
+
+Esto se puede ejemplificar de la siguiente manera: 
+
+```{r}
+predict(modelo_2010, fb_df[which(fb_df$anyo == 2010 & fb_df$Internet_por_num == 63),c("Internet_por_num", "Internet_por_num_elevada_alcuadrado")])
+
+
+predict(modelo_2018, fb_df[which(fb_df$anyo == 2018 & fb_df$Internet_por_num == 63),c("Internet_por_num", "Internet_por_num_elevada_alcuadrado")])
+```
+En el caso del ejemplo anterior, lo que se hizo fue tomar un valor de Internet_por_num y predecir Facebook_por_num para 2010 y 2018. 
+
+A partir de esto, se puede notar que la sensibilidad a la variable predictora es mucho mas alta en el año 2018 que en el 2010. Esto viene principalmente explicada por Internet_por_num (ya que su versión transformada al cuadrado tiene un coeficiente negativo y pequeño). 
+
+La conclusión que se puede tomar de esto es que los comportamientos y la adopción de Facebook cambió entre un año y el otro; mientras que en 2010 no influía la adopción de internet para utilizar la red social (baja adopción), en 2018 su popularidad era mucho mayor. Dado lo anterior, a mayor cobertura de Internet, mayor uso de Facebook.
